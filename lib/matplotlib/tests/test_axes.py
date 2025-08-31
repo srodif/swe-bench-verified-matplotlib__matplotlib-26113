@@ -999,6 +999,49 @@ def test_hexbin_log_clim():
     assert h.get_clim() == (2, 100)
 
 
+def test_hexbin_mincnt_consistency():
+    """
+    Test that hexbin mincnt parameter behaves consistently whether C is provided.
+    
+    This test addresses the issue where hexbin with mincnt=N would show different 
+    numbers of hexagons depending on whether the C parameter was provided:
+    - When C=None: mincnt=N shows hexagons with >= N points  
+    - When C!=None: mincnt=N should also show hexagons with >= N points
+    
+    The bug was that the C!=None case used len(acc) > mincnt instead of >= mincnt.
+    """
+    # Create test data with known point distribution
+    # 2 points at (0,0), 1 point at (1,0), 3 points at (0,1)
+    x = np.array([0., 0., 1., 0., 0., 0.])
+    y = np.array([0., 0., 0., 1., 1., 1.])
+    c = np.ones_like(x)  # Use constant values for C parameter
+    
+    extent = [-0.5, 1.5, -0.5, 1.5]
+    gridsize = (4, 4)
+    
+    # Test various mincnt values
+    for mincnt_val in [0, 1, 2, 3]:
+        # Case 1: C is None  
+        fig1, ax1 = plt.subplots()
+        h1 = ax1.hexbin(x, y, mincnt=mincnt_val, extent=extent, gridsize=gridsize)
+        n_hexes_no_c = len(h1.get_offsets())
+        plt.close(fig1)
+        
+        # Case 2: C is provided with reduce_C_function=np.sum
+        fig2, ax2 = plt.subplots()
+        h2 = ax2.hexbin(x, y, C=c, reduce_C_function=np.sum, mincnt=mincnt_val,
+                        extent=extent, gridsize=gridsize)
+        n_hexes_with_c = len(h2.get_offsets())
+        plt.close(fig2)
+        
+        # They should show the same number of hexagons
+        assert n_hexes_no_c == n_hexes_with_c, (
+            f"Inconsistent mincnt behavior for mincnt={mincnt_val}: "
+            f"C=None shows {n_hexes_no_c} hexagons, "
+            f"C!=None shows {n_hexes_with_c} hexagons"
+        )
+
+
 def test_inverted_limits():
     # Test gh:1553
     # Calling invert_xaxis prior to plotting should not disable autoscaling
